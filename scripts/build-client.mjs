@@ -3,7 +3,7 @@
  *
  * 硬约束（与 CLIENT_BUNDLE 参考一致）：
  * - 产物必须是单文件 ModuleLoader 格式：首行
- *   window.__ModuleLoader__.load({ id: "dsh-session-explorer", factory: (require) => {
+ *   window.__ModuleLoader__.load({ id: "dsh-session-finder", factory: (require) => {
  * - react / react-dom / react/jsx-runtime / @deepseek-ai/dsh-client-ui-primitives 等
  *   platform seed 词保持 external（运行时由 loader 注入的 require 解答）
  * - CJS 输出的 intro 必须提供 module/exports（浏览器没有 CommonJS 全局）
@@ -24,25 +24,23 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const entry = join(root, 'src', 'client', 'bundle-entry.ts')
 const outfile = join(root, 'lib', 'client.js')
 
-const ID = 'dsh-session-explorer'
+const ID = 'dsh-session-finder'
 const HEADER = 'window.__ModuleLoader__.load({ id: ' + JSON.stringify(ID) + ', factory: (require) => {'
 const FOOTER = 'return factory(require); } });'
 // CJS 输出在浏览器运行，必须自己提供 module/exports（官方 tsdown preset 同款 intro）。
 const INTRO = 'var module = { exports: {} }; var exports = module.exports;'
 
-// platform seed words（与 packages/client/web/src/seed.ts 一致）
+// platform seed words（与 packages/client/web/src/platform.ts 的 PLATFORM_MODULES 一致，DSH 0.2.x）
 const EXTERNALS = [
   'react',
   'react/jsx-runtime',
   'react-dom',
   'react-dom/client',
   '@deepseek-ai/cordis',
+  '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-slots',
-  '@deepseek-ai/dsh-client-web-react',
   '@deepseek-ai/dsh-client-ui-primitives',
-  '@deepseek-ai/dsh-client-ui-attachment',
-  '@deepseek-ai/dsh-client-schema-form',
-  '@xyflow/react',
+  '@deepseek-ai/dsh-client-ui-dockkit',
 ]
 
 async function main() {

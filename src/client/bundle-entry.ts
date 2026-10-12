@@ -16,9 +16,11 @@ import { App } from './App.js'
 import type { LocaleServiceLike } from './i18n.js'
 import styles from './styles.css'
 
-export const CHANNEL = '/dsh-session-explorer'
+export const CHANNEL = '/dsh-session-finder'
 
 // ── DOM 选择器（与 dsh-ssh 一致，按当前 shell 结构适配）─────
+// 注意：下面这些属性名与 data-dsh-plugin 的值沿用上游命名，属于与兄弟面板插件
+// 共享的 DOM 契约（互斥 family），改名会让对方的硬编码选择器失配，故保持不变。
 const SIDEBAR_SELECTOR = '[data-pane="sidebar"], [class*="sidebarCol"]'
 const CONVERSATION_SELECTOR = '[data-pane="conversation"], [class*="centerCol"]'
 const ENTRY_SELECTOR = '[data-dsh-session-explorer-entry]'
@@ -276,7 +278,7 @@ export function factory(require: (spec: string) => unknown) {
     }
 
     // CSS 幂等注入
-    const tagId = 'dsh-session-explorer/styles.css'
+    const tagId = 'dsh-session-finder/styles.css'
     if (document.querySelector('style[data-plugin-css="' + tagId + '"]') === null) {
       const tag = document.createElement('style')
       tag.dataset.pluginCss = tagId
@@ -284,10 +286,10 @@ export function factory(require: (spec: string) => unknown) {
       document.head.appendChild(tag)
     }
 
-    // 侧栏入口 label：跟随 locale（中文「会话浏览器」/ 英文「Session Explorer」）
+    // 侧栏入口 label：跟随 locale（中文「会话查找」/ 英文「Session Finder」）
     const entryLabel = (): string => {
       const active = locale?.getSnapshot?.()?.active
-      return typeof active === 'string' && active.length > 0 && !active.toLowerCase().startsWith('zh') ? 'Session Explorer' : '会话浏览器'
+      return typeof active === 'string' && active.length > 0 && !active.toLowerCase().startsWith('zh') ? 'Session Finder' : '会话查找'
     }
     let disposeEntry = () => {}
     const applyEntry = () => { disposeEntry(); disposeEntry = mountSidebarEntry(store, entryLabel()) }
@@ -299,7 +301,7 @@ export function factory(require: (spec: string) => unknown) {
       unsubscribeLocale?.()
       disposePanel()
       disposeEntry()
-    }, 'dsh-session-explorer: sidebar workspace')
+    }, 'dsh-session-finder: sidebar workspace')
   }
 
   bundleModule.exports.apply = apply

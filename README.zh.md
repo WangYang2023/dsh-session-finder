@@ -1,8 +1,8 @@
-# dsh-session-explorer
+# dsh-session-finder
 
 > [English](./README.md) | **中文**
 
-DSH Web 插件：会话消息级全文检索浏览器。检索具体到某一条消息（用户/助手/工具/系统注入四类），只读预览上下文，一键跳转真实会话。
+DSH Web 插件：会话消息级全文检索浏览器。本仓库是 **dsh-session-explorer** 0.5.0（MIT，原作者 Zn-Dk）的维护分支，Host 半已适配 DSH 0.2.x。检索具体到某一条消息（用户/助手/工具/系统注入四类），只读预览上下文，一键跳转真实会话。
 
 ## 功能
 
@@ -18,23 +18,15 @@ DSH Web 插件：会话消息级全文检索浏览器。检索具体到某一条
 
 ## 安装
 
-### 从 npm 安装（推荐）
-
-```sh
-dsh plugin --profile web add dsh-session-explorer
-```
-
-包页面：[https://www.npmjs.com/package/dsh-session-explorer](https://www.npmjs.com/package/dsh-session-explorer)
-
 ### 本地构建安装
 
 ```sh
 pnpm install
 pnpm pack
-dsh plugin --profile web add ./dsh-session-explorer-*.tgz
+dsh plugin --profile desktop add ./dsh-session-finder-*.tgz
 ```
 
-安装后重启 `dsh web`，侧栏工具区出现「会话浏览器」入口。索引库位于 `~/.dsh/storages/session-explorer.sqlite`（首次使用自动创建并索引）。
+安装后重启应用，侧栏工具区出现「会话查找」入口。索引库仍位于 `~/.dsh/storages/session-explorer.sqlite`（路径未变，已有索引可直接复用）。
 
 ## 开发
 

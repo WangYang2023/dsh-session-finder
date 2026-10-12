@@ -104,7 +104,7 @@ export interface ExplorerClient {
 export function createExplorerClient(connection: unknown, channel: string): ExplorerClient {
   const rpc = (connection as { rpc?: { call?: (channel: string, method: string, payload?: unknown) => Promise<unknown> } })?.rpc
   if (!rpc || typeof rpc.call !== 'function') {
-    throw new Error('dsh-session-explorer: connection.rpc.call is unavailable')
+    throw new Error('dsh-session-finder: connection.rpc.call is unavailable')
   }
   // payload 必须始终可 JSON 序列化且非 undefined：引擎 clientRequestSchema 要求
   // payload 字段存在（z.unknown() 非 optional），undefined 会被 JSON.stringify 丢弃 → 请求校验失败。

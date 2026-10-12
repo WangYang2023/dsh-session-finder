@@ -1,7 +1,7 @@
 {
-  "name": "dsh-session-explorer",
-  "version": "0.5.0",
-  "description": "DSH Web 插件：会话消息级全文检索与会话总览浏览器。检索具体到某一条消息（正文/工具名/参数/错误摘要），会话总览浏览全部会话，只读上下文预览。",
+  "name": "dsh-session-finder",
+  "version": "0.6.0",
+  "description": "DSH Web 插件：跨会话消息级全文检索 + 会话总览。检索到具体某条消息（正文/工具名/参数/错误摘要），总览浏览全部会话，只读上下文预览。（dsh-session-explorer 的维护分支，适配 DSH 0.2.x）",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,6 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-locale"
@@ -43,7 +42,7 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-home-paths": ">=0.1.0-rc.6",
+    "@deepseek-ai/dsh-home-paths": ">=0.0.1-rc.3",
     "zod": "^4.0.0"
   },
   "scripts": {
@@ -52,17 +51,27 @@
     "build:client": "node scripts/build-client.mjs",
     "prepack": "pnpm build",
     "test": "tsx --test test/*.test.ts",
-    "pack:check": "pnpm pack --dry-run"
+    "pack:check": "pnpm pack --dry-run",
+    "install:desktop": "sh scripts/install-to-desktop.sh"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "esbuild": "^0.25.0",
     "rolldown": "^1.2.5",
     "tsx": "^4.19.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "@deepseek-ai/dsh-home-paths": "^0.0.1-rc.3",
+    "zod": "^4.6.6"
   },
   "dependencies": {},
-  "peerDependenciesMeta": {}
+  "peerDependenciesMeta": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WangYang2023/dsh-session-explorer.git"
+  },
+  "homepage": "https://github.com/WangYang2023/dsh-session-explorer#readme",
+  "bugs": {
+    "url": "https://github.com/WangYang2023/dsh-session-explorer/issues"
+  }
 }

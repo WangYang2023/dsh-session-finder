@@ -1,8 +1,8 @@
-# dsh-session-explorer
+# dsh-session-finder
 
 > **English** | [中文](./README.zh.md)
 
-DSH Web plugin: message-level full-text search across sessions. Search a specific message (user / assistant / tool / system-injected), preview context read-only, and jump to the real session with one click.
+DSH Web plugin: message-level full-text search across sessions. This is a maintained fork of **dsh-session-explorer** 0.5.0 (MIT, by Zn-Dk), ported to the DSH 0.2.x Host APIs. Search a specific message (user / assistant / tool / system-injected), preview context read-only, and jump to the real session with one click.
 
 ## Features
 
@@ -18,23 +18,15 @@ DSH Web plugin: message-level full-text search across sessions. Search a specifi
 
 ## Installation
 
-### From npm (recommended)
-
-```sh
-dsh plugin --profile web add dsh-session-explorer
-```
-
-Package page: [https://www.npmjs.com/package/dsh-session-explorer](https://www.npmjs.com/package/dsh-session-explorer)
-
 ### Build from source
 
 ```sh
 pnpm install
 pnpm pack
-dsh plugin --profile web add ./dsh-session-explorer-*.tgz
+dsh plugin --profile desktop add ./dsh-session-finder-*.tgz
 ```
 
-After installation, restart `dsh web`; the "Session Explorer" entry appears in the sidebar tool area. The index lives at `~/.dsh/storages/session-explorer.sqlite` (auto-created and indexed on first use).
+After installation, restart the application; the "Session Finder" entry appears in the sidebar tool area. The index lives at `~/.dsh/storages/session-explorer.sqlite` (unchanged path, so an existing index is reused).
 
 ## Development
 

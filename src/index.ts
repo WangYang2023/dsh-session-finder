@@ -1,8 +1,8 @@
 /**
- * dsh-session-explorer Host 装配层。
+ * dsh-session-finder Host 装配层（dsh-session-explorer 的维护分支）。
  *
  * - 打开/初始化 ~/.dsh/storages/session-explorer.sqlite（trigram FTS5 索引）
- * - RPC /dsh-session-explorer（loopback）
+ * - RPC /dsh-session-finder（loopback）
  * - 事件同步：agent/turn-stopping 增量 + 启动对账 + 手动 rebuild
  * - 依赖全部可选（ctx.get），服务缺失时降级为可报告错误，不让插件加载失败
  */
@@ -16,10 +16,10 @@ import { foldSession, foldTitle } from './transcript.js'
 import { dispatch } from './rpc.js'
 import type { ExplorerRpc, IndexHealth, IndexStatus, RebuildRequest, RebuildResponse, SyncResponse, TimelineNodeKind } from './protocol.js'
 
-export const name = 'dsh-session-explorer'
+export const name = 'dsh-session-finder'
 
 /** RPC 通道名（client 侧共用）。 */
-export const CHANNEL = '/dsh-session-explorer'
+export const CHANNEL = '/dsh-session-finder'
 
 /** 索引库路径：~/.dsh/storages/session-explorer.sqlite。 */
 export function indexPath(): string {
@@ -44,19 +44,66 @@ interface SessionHeaderLike {
   parentSession?: unknown
 }
 
-interface PersistenceLike {
-  listSnapshots?: () => Promise<Array<{ header: SessionHeaderLike; revision?: unknown }>>
-  list?: () => Promise<SessionHeaderLike[]>
-  inspect?: (id: string) => Promise<{ meta: SessionHeaderLike; events: SessionEventLike[] }>
+/** 持久化快照：0.2.x list() 返回 { header, revision }，旧 API 可能只给 header。 */
+interface PersistenceSnapshotLike {
+  header?: SessionHeaderLike
+  id?: unknown
+  revision?: unknown
 }
 
-/** sessionId → revision 映射（listSnapshots 轻量快照，O(1) 不读日志）。 */
+/** 0.2.x 读句柄：open(id, 'read') 的返回值。 */
+interface PersistenceHandleLike {
+  header?: SessionHeaderLike
+  read?: () => Promise<{ events?: SessionEventLike[] }>
+  close?: () => Promise<void> | void
+}
+
+interface PersistenceLike {
+  /** 0.2.x：全部会话的轻量快照。 */
+  list?: () => Promise<PersistenceSnapshotLike[]>
+  /** 0.1.x：旧快照列表。 */
+  listSnapshots?: () => Promise<PersistenceSnapshotLike[]>
+  /** 0.1.x：旧单会话读取。 */
+  inspect?: (id: string) => Promise<{ meta: SessionHeaderLike; events: SessionEventLike[] } | undefined>
+  /** 0.2.x：打开单会话读句柄。 */
+  open?: (id: string, access: 'read') => Promise<PersistenceHandleLike>
+}
+
+/** 兼容层：优先 0.2.x 的 list()，回退 0.1.x 的 listSnapshots()。 */
+async function listSnapshots(persistence: PersistenceLike): Promise<PersistenceSnapshotLike[] | null> {
+  if (persistence.listSnapshots) return await persistence.listSnapshots()
+  if (persistence.list) return await persistence.list()
+  return null
+}
+
+/** 兼容层：优先 0.1.x 的 inspect()，回退 0.2.x 的 open(id,'read') + read() + header。 */
+async function inspectSession(
+  persistence: PersistenceLike,
+  sessionId: string,
+): Promise<{ meta: SessionHeaderLike; events: SessionEventLike[] } | null> {
+  if (persistence.inspect) return (await persistence.inspect(sessionId)) ?? null
+  if (!persistence.open) return null
+  const handle = await persistence.open(sessionId, 'read')
+  try {
+    const result = await handle.read?.()
+    return { meta: handle.header ?? {}, events: result?.events ?? [] }
+  } finally {
+    await handle.close?.()
+  }
+}
+
+/** 持久化服务是否具备读取会话日志的能力（新旧 API 任一）。 */
+function readablePersistence(persistence: PersistenceLike | undefined): PersistenceLike | undefined {
+  return persistence && (persistence.inspect || persistence.open) ? persistence : undefined
+}
+
+/** sessionId → revision 映射（list()/listSnapshots() 轻量快照，O(1) 不读日志）。 */
 async function listSnapshotRevisions(persistence: PersistenceLike): Promise<Map<string, string> | null> {
-  if (!persistence.listSnapshots) return null
-  const snapshots = await persistence.listSnapshots()
+  const snapshots = await listSnapshots(persistence)
+  if (!snapshots) return null
   const map = new Map<string, string>()
   for (const snapshot of snapshots) {
-    const id = sessionIdOf(snapshot.header?.id)
+    const id = sessionIdOf(snapshot.header?.id ?? snapshot.id)
     const rev = typeof snapshot.revision === 'string' ? snapshot.revision : String(snapshot.revision ?? '')
     if (id && rev) map.set(id, rev)
   }
@@ -87,6 +134,12 @@ interface ConnectionLike {
 
 interface WebLike {
   connection?: ConnectionLike
+  /**
+   * root ctx。0.2.x 的 `connection.rpc.handle()` 内部用**调用方 ctx 的属性代理**
+   * 读 `webServer`（由兄弟 entry 提供），注入子 ctx 解析不到；root ctx 走全局
+   * 服务读取，是当前唯一可用的注册路径。
+   */
+  root?: { get: (service: string) => unknown }
 }
 
 interface CtxLike {
@@ -109,7 +162,7 @@ function kindOf(header: SessionHeaderLike): TimelineNodeKind {
 
 /** 同步一个会话的最新日志。 */
 async function syncSession(index: SessionIndex, persistence: PersistenceLike, sessionId: string, revision?: string | null): Promise<boolean> {
-  const inspection = await persistence.inspect!(sessionId)
+  const inspection = await inspectSession(persistence, sessionId)
   if (!inspection) return false
   const events = (inspection.events ?? []) as SessionEventLike[]
   const folded = foldSession(sessionId, events as never[])
@@ -129,19 +182,13 @@ async function syncSession(index: SessionIndex, persistence: PersistenceLike, se
   return true
 }
 
-/** 列出所有已知会话 id（优先 snapshot 列表，降级 header 列表）。 */
+/** 列出所有已知会话 id（0.2.x list() 快照或 0.1.x 旧列表）。 */
 async function listSessionIds(persistence: PersistenceLike): Promise<string[]> {
   const ids: string[] = []
-  if (persistence.listSnapshots) {
-    const snapshots = await persistence.listSnapshots()
+  const snapshots = await listSnapshots(persistence)
+  if (snapshots) {
     for (const snapshot of snapshots) {
-      const id = sessionIdOf(snapshot.header?.id)
-      if (id) ids.push(id)
-    }
-  } else if (persistence.list) {
-    const headers = await persistence.list()
-    for (const header of headers) {
-      const id = sessionIdOf(header.id)
+      const id = sessionIdOf(snapshot.header?.id ?? snapshot.id)
       if (id) ids.push(id)
     }
   }
@@ -161,7 +208,7 @@ export function apply(ctx: CtxLike) {
   const warnOnce = (key: string, message: string) => {
     if (!warned.includes(key)) {
       warned.push(key)
-      ctx.logger?.warn?.('[dsh-session-explorer] ' + message)
+      ctx.logger?.warn?.('[dsh-session-finder] ' + message)
     }
   }
 
@@ -169,20 +216,20 @@ export function apply(ctx: CtxLike) {
   // session-persistence-jsonl 可能尚未 mount（alpha.4+ 装配时序变化）；
   // closure 快照会把 undefined 永久捕获，导致 sync 静默失效、rebuild 报错。
   const persistenceOf = (): PersistenceLike | undefined =>
-    ctx.get('sessionPersistence') as PersistenceLike | undefined
+    readablePersistence(ctx.get('sessionPersistence') as PersistenceLike | undefined)
   const agentsOf = () => (ctx.get('agents') as AgentsLike | undefined)?.roots?.() ?? []
 
   try {
     index = SessionIndex.open(indexPath())
   } catch (error) {
-    ctx.logger?.warn?.('[dsh-session-explorer] index unavailable: ' + errorOf(error))
+    ctx.logger?.warn?.('[dsh-session-finder] index unavailable: ' + errorOf(error))
     index = null
   }
 
   // 面板打开时同步：live 会话 + 从未索引的新会话（串行，量小安全）。
   const syncNow = async (): Promise<SyncResponse> => {
     const persistence = persistenceOf()
-    if (!persistence?.inspect) return { synced: 0, failed: 0 }
+    if (!persistence) return { synced: 0, failed: 0 }
     const targets = new Set<string>()
     for (const agent of agentsOf()) {
       const id = sessionIdOf(agent.session?.id)
@@ -247,8 +294,8 @@ export function apply(ctx: CtxLike) {
     rebuild: async (request: RebuildRequest): Promise<RebuildResponse> => {
       if (!index) throw new Error('index unavailable')
       const persistence = persistenceOf()
-      if (!persistence?.inspect) {
-        throw new Error('sessionPersistence.inspect is not available (service not mounted yet)')
+      if (!persistence) {
+        throw new Error('sessionPersistence read API is not available (service not mounted yet)')
       }
       const ids = await listSessionIds(persistence)
       const failures: RebuildResponse['failures'] = []
@@ -311,7 +358,8 @@ export function apply(ctx: CtxLike) {
           }
           // 其余情况：未索引 / revision 变化 / revision 缺失（老库）→ 重刷
           try {
-            const inspection = await persistenceOf()!.inspect!(id)
+            const inspection = await inspectSession(persistence, id)
+            if (!inspection) throw new Error('session not found: ' + id)
             const events = (inspection.events ?? []) as SessionEventLike[]
             const folded = foldSession(id, events as never[])
             const title = foldTitle(events as never[])
@@ -347,7 +395,7 @@ export function apply(ctx: CtxLike) {
 
   const onTurnStopping = (payload?: unknown) => {
     const persistence = persistenceOf()
-    if (!index || !persistence?.inspect || syncing) return
+    if (!index || !persistence || syncing) return
     const agent = payload as AgentLike | undefined
     const id = sessionIdOf(agent?.session?.id)
     if (!id) return
@@ -372,7 +420,7 @@ export function apply(ctx: CtxLike) {
         stopTurn()
         stopStatus()
       }
-    }, 'dsh-session-explorer.turn(' + id + ')')
+    }, 'dsh-session-finder.turn(' + id + ')')
   }
 
   const stopCreated = ctx.on('agent/created', (payload) => {
@@ -382,11 +430,11 @@ export function apply(ctx: CtxLike) {
 
   // 启动期 persistence 可能晚于本 entry mount：给一轮有限等待。
   const waitForPersistence = async (deadlineMs: number): Promise<PersistenceLike | undefined> => {
-    if (persistenceOf()?.inspect) return persistenceOf()
+    if (persistenceOf()) return persistenceOf()
     const started = Date.now()
     while (Date.now() - started < deadlineMs && !disposed) {
       await new Promise((resolve) => setTimeout(resolve, 100))
-      if (persistenceOf()?.inspect) return persistenceOf()
+      if (persistenceOf()) return persistenceOf()
     }
     return persistenceOf()
   }
@@ -394,7 +442,7 @@ export function apply(ctx: CtxLike) {
   // 首个 persistence 就绪后补挂既有 roots 的事件监听（apply 时可能还没就绪）。
   void (async () => {
     const persistence = await waitForPersistence(10_000)
-    if (!persistence?.inspect || disposed) return
+    if (!persistence || disposed) return
     for (const agent of (ctx.get('agents') as AgentsLike | undefined)?.roots?.() ?? []) attachAgent(agent)
   })()
 
@@ -402,7 +450,7 @@ export function apply(ctx: CtxLike) {
   void (async () => {
     if (!index) return
     const persistence = await waitForPersistence(10_000)
-    if (!persistence?.inspect) {
+    if (!persistence) {
       warnOnce('persistence', 'sessionPersistence not mounted within 10s; sync/rebuild disabled for this boot')
       return
     }
@@ -425,7 +473,7 @@ export function apply(ctx: CtxLike) {
 
   let disposeRpc: (() => void) | null = null
   ctx.inject(['connection'], (web) => {
-    const rpc = web.connection?.rpc
+    const rpc = ((web.root?.get('connection') as ConnectionLike | undefined) ?? web.connection)?.rpc
     if (!rpc) return
     const handler = async (endpoint: string, payload: unknown) => {
       return dispatch(handlers, endpoint, payload)
