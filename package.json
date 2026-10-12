@@ -70,10 +70,10 @@
   "peerDependenciesMeta": {},
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/WangYang2023/dsh-session-explorer.git"
+    "url": "git+https://github.com/WangYang2023/dsh-session-finder.git"
   },
-  "homepage": "https://github.com/WangYang2023/dsh-session-explorer#readme",
+  "homepage": "https://github.com/WangYang2023/dsh-session-finder#readme",
   "bugs": {
-    "url": "https://github.com/WangYang2023/dsh-session-explorer/issues"
+    "url": "https://github.com/WangYang2023/dsh-session-finder/issues"
   }
 }
