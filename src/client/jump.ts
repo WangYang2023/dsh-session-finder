@@ -278,7 +278,7 @@ async function switchSession(sessions: JumpSessionsLike, request: JumpRequest): 
     const entry = (catalog?.entries ?? []).find(
       (item) => item?.kind === 'child' && item?.id === sessionId && (item?.mode === 'one-shot' || item?.mode === 'continuable'),
     )
-    return entry !== undefined ? { mode: entry.mode } : undefined
+    return entry !== undefined && entry.mode !== undefined ? { mode: entry.mode } : undefined
   }
 
   // 快照里已有目录 → 直接用；否则拉一次目录再等快照投影更新

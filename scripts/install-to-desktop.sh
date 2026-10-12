@@ -9,8 +9,18 @@ APP_PNPM="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/pnpm/bin
 
 cd "$ROOT"
 pnpm build
-TARBALL="$(pnpm pack | tail -1)"
-TARBALL="$ROOT/$(basename "$TARBALL")"
+PACKED="$(pnpm pack | tail -1)"
+PACKED="$ROOT/$(basename "$PACKED")"
+
+# 包名带上内容哈希：依赖 spec 是固定的 file: 路径时，pnpm 看到同名文件会判定
+# "Already up to date" 而不重新拷贝；换名字才能让每次构建真正生效。
+HASH="$(shasum -a 256 "$PACKED" | cut -c1-12)"
+TARBALL="${PACKED%.tgz}-$HASH.tgz"
+mv "$PACKED" "$TARBALL"
+for old in "$ROOT"/dsh-session-finder-*.tgz; do
+  [ "$old" = "$TARBALL" ] && continue
+  [ -f "$old" ] && rm -f "$old"
+done
 echo "packed: $TARBALL"
 
 # profile 的依赖固定指向该 tarball（版本变化也能自动跟上）

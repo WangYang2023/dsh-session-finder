@@ -52,19 +52,21 @@
     "prepack": "pnpm build",
     "test": "tsx --test test/*.test.ts",
     "pack:check": "pnpm pack --dry-run",
-    "install:desktop": "sh scripts/install-to-desktop.sh"
+    "install:desktop": "sh scripts/install-to-desktop.sh",
+    "smoke:client": "node scripts/smoke-client.mjs"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-home-paths": "^0.0.1-rc.3",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "rolldown": "^1.2.5",
     "tsx": "^4.19.0",
     "typescript": "^5.0.0",
-    "@deepseek-ai/dsh-home-paths": "^0.0.1-rc.3",
     "zod": "^4.6.6"
   },
-  "dependencies": {},
   "peerDependenciesMeta": {},
   "repository": {
     "type": "git",

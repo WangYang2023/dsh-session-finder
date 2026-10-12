@@ -4,6 +4,9 @@
 
 ### 变更
 - 从 `dsh-session-explorer` 0.5.0 fork 并更名为 `dsh-session-finder`（MIT，原作者 Zn-Dk），功能不变。
+- **客户端入口从 DOM 注入迁到官方 Slots API**：侧栏注册进 `sidebar.panellist`（壳负责按钮/标签/选中态），主面板注册进 `main`（key = `session-finder`），「返回会话」改用 `ctx.layout.selectPanel('conversation')`。删掉了全部 DOM 选择器注入、MutationObserver 自愈、兄弟面板互斥事件与 `.sex-entry*` 样式（bundle 从 109KB 降到 101KB）。
+- 顺手修掉三个上游遗留的客户端类型错误（`tsc -p tsconfig.client.json` 现在全绿）：时间线视图缺 `client` prop（其搜索框会真的抛错）、i18n 中英各 3 个重复键、子代理目录项 `mode` 可能缺省却被当作合法值传给 `openSubagent`。
+- 新增 `pnpm run smoke:client`：无浏览器冒烟测试，断言 bundle id、两个 slot 注册、locale 跟随、inject face 与面板/图标渲染。
 - 适配 DSH 0.2.x 持久化 API：`inspect()` / `listSnapshots()` 已被移除，改为 `list()` 取快照、`open(id, 'read')` + `read()` + `handle.header` 取日志与元数据（保留旧 API 兼容分支）。
 - RPC 通道注册改经 root ctx：0.2.x 的 `connection.rpc.handle()` 内部用调用方 ctx 的属性代理读 `webServer`（由兄弟 entry 提供），注入子 ctx 解析不到会抛 `cannot get property "webServer" without inject`，导致通道未挂载、客户端请求落到静态 fallback 报 HTTP 405。
 - 客户端打包 externals 对齐 0.2.x 的 `PLATFORM_MODULES`；侧栏入口文案改为「会话查找」/ "Session Finder"。

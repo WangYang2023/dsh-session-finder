@@ -4,7 +4,6 @@
  * 本文件不 import 任何 host 模块（打包时会被 esbuild 处理）。
  */
 
-import { createElement, useState, useEffect, useSyncExternalStore, useCallback } from 'react'
 import type {
   ExplorerRpc,
   IndexStatus,
@@ -15,39 +14,6 @@ import type {
   TimelineNode,
   TimelineTurnsResponse,
 } from '../protocol.js'
-
-/** 面板开关状态（shared by sidebar entry + overlay panel）。 */
-export interface PanelState {
-  open: boolean
-}
-
-export function createPanelStore() {
-  let state: PanelState = { open: false }
-  const listeners = new Set<() => void>()
-  return {
-    getSnapshot: (): PanelState => state,
-    subscribe: (listener: () => void): (() => void) => {
-      listeners.add(listener)
-      return () => { listeners.delete(listener) }
-    },
-    open: (): void => {
-      if (state.open) return
-      state = { open: true }
-      for (const listener of listeners) listener()
-    },
-    close: (): void => {
-      if (!state.open) return
-      state = { open: false }
-      for (const listener of listeners) listener()
-    },
-    toggle: (): void => {
-      state = { open: !state.open }
-      for (const listener of listeners) listener()
-    },
-  }
-}
-
-export type PanelStore = ReturnType<typeof createPanelStore>
 
 /** RPC 结果包（host dispatch 的返回形状：ok true → value；ok false → error）。 */
 export interface RpcEnvelope<T> {
@@ -134,9 +100,4 @@ export function createExplorerClient(connection: unknown, channel: string): Expl
 /** 惰性错误描述。 */
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-/** usePanelStore hook。 */
-export function usePanelStore(store: PanelStore): PanelState {
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 }

@@ -3,8 +3,8 @@
  */
 
 import { useState, useEffect, useCallback, createElement } from 'react'
-import type { ExplorerClient, PanelStore } from './store.js'
-import { envelopeError, usePanelStore } from './store.js'
+import type { ExplorerClient } from './store.js'
+import { envelopeError } from './store.js'
 import { SearchView } from './views/SearchView.js'
 import { TimelineView } from './views/TimelineView.js'
 import { PreviewView } from './views/PreviewView.js'
@@ -14,12 +14,12 @@ import { useI18n, type LocaleServiceLike } from './i18n.js'
 
 export interface AppProps {
   client: ExplorerClient
-  store: PanelStore
   /** 打开真实会话（由 bundle-entry 注入）。 */
   onOpenSession: (sessionId: string) => void
   /** bundle-entry 注入的 sessions 服务（带锚点跳原会话用）。 */
   sessions?: JumpSessionsLike
-  onClose: () => void
+  /** 返回会话：切回中央列的 conversation 面板（slot 世界里由 layout 服务负责）。 */
+  onBack: () => void
   /** DSH 平台 Tooltip 组件（由 bundle-entry 从 primitives seed 注入）。 */
   Tooltip?: unknown
   /** DSH Host locale 服务（由 bundle-entry 注入；缺省回退 navigator.language）。 */
@@ -31,8 +31,7 @@ type View =
   | { name: 'timeline' }
   | { name: 'preview'; sessionId: string; seq: number }
 
-export function App({ client, store, onOpenSession, sessions, onClose, Tooltip, locale }: AppProps) {
-  const panel = usePanelStore(store)
+export function App({ client, onOpenSession, sessions, onBack, Tooltip, locale }: AppProps) {
   const { t } = useI18n(locale)
   const [view, setView] = useState<View>({ name: 'search' })
   const [timeline, setTimeline] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; nodes: TimelineNode[]; error: string | null }>({ status: 'idle', nodes: [], error: null })
@@ -85,13 +84,12 @@ export function App({ client, store, onOpenSession, sessions, onClose, Tooltip, 
   }, [client])
 
   useEffect(() => {
-    if (!panel.open) return
     void (async () => {
-      // 面板打开时同步一次（live 会话最新消息 + 未索引新会话），再刷新状态
+      // 面板挂载时同步一次（live 会话最新消息 + 未索引新会话），再刷新状态
       try { await client.sync() } catch { /* 非关键 */ }
       await loadIndexStatus()
     })()
-  }, [panel.open, loadIndexStatus, client])
+  }, [loadIndexStatus, client])
 
   const doRebuild = useCallback(async (mode: 'incremental' | 'full') => {
     setRebuildDialog((d) => ({ ...d, open: false }))
@@ -179,21 +177,19 @@ export function App({ client, store, onOpenSession, sessions, onClose, Tooltip, 
       child: hit.child === true,
       parentSessionId: hit.parentSessionId ?? null,
     }, {
-      onClose: () => { store.close() },
+      onClose: onBack,
       onNotice: (message) => { setJumpNotice(message) },
       messages: {
         notInList: t('jumpNotInList'),
         openFailed: t('jumpOpenFailed'),
       },
     })
-  }, [sessions, store, t])
-
-  if (!panel.open) return null
+  }, [sessions, onBack, t])
 
   return (
     <div className="sex-app">
       <div className="sex-header">
-        <button type="button" className="sex-back" aria-label={t('backToSessionAria')} onClick={onClose}>
+        <button type="button" className="sex-back" aria-label={t('backToSessionAria')} onClick={onBack}>
           <span aria-hidden="true">‹</span>
           <span>{t('backToSession')}</span>
         </button>
@@ -253,6 +249,7 @@ export function App({ client, store, onOpenSession, sessions, onClose, Tooltip, 
           : timeline.status === 'error'
             ? <div className="sex-error">{timeline.error}</div>
             : <TimelineView
+            client={client}
             nodes={timeline.nodes}
             selectedSessionId={selectedSessionId}
             turns={turns}
